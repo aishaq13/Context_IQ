@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contextiq-backend
+  labels:
+    app: contextiq
+    component: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: contextiq
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: contextiq
+        component: backend
+    spec:
+      containers:
+      - name: backend
+        image: contextiq-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: contextiq-secrets
+              key: database-url
+        - name: REDIS_URL
+          value: redis://redis:6379/0
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: kafka:9092
+        - name: AWS_REGION
+          value: "us-east-1"
+        - name: BEDROCK_MODEL_ID
+          value: "claude-3-sonnet-20240229"
+        - name: DEBUG
+          value: "false"
+        - name: CACHE_TTL
+          value: "300"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app: contextiq
+    component: backend
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 8000
+    targetPort: http
+  selector:
+    app: contextiq
+    component: backend
